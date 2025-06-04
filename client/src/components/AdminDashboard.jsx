@@ -526,7 +526,11 @@ function AdminDashboard() {
       setLoadingClaims(true);
       setError('');
       try {
-        const data = await apiFetch('/admin/claims', 'GET', null, auth.token);
+        const res = await fetch('/api/admin/claims', {
+          headers: { Authorization: `Bearer ${auth.token}` },
+        });
+        if (!res.ok) throw new Error('Failed to fetch claims');
+        const data = await res.json();
         setClaims(data);
       } catch (err) {
         setError(err.message);
@@ -543,7 +547,11 @@ function AdminDashboard() {
       setLoadingUsers(true);
       setError('');
       try {
-        const data = await apiFetch('/admin/users', 'GET', null, auth.token);
+        const res = await fetch('/api/admin/users', {
+          headers: { Authorization: `Bearer ${auth.token}` },
+        });
+        if (!res.ok) throw new Error('Failed to fetch users');
+        const data = await res.json();
         setUsers(data);
       } catch (err) {
         setError(err.message);
@@ -557,7 +565,16 @@ function AdminDashboard() {
   // Update claim status
   async function updateClaimStatus(claimId, status) {
     try {
-      const updatedClaim = await apiFetch(`/admin/claims/${claimId}`, 'PATCH', { status }, auth.token);
+      const res = await fetch(`/api/admin/claims/${claimId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${auth.token}`
+        },
+        body: JSON.stringify({ status })
+      });
+      if (!res.ok) throw new Error('Failed to update claim');
+      const updatedClaim = await res.json();
       setClaims(claims.map(c => (c._id === claimId ? updatedClaim.claim : c)));
     } catch (err) {
       alert(err.message);
@@ -567,7 +584,16 @@ function AdminDashboard() {
   // Update user role
   async function updateUserRole(userId, newRole) {
     try {
-      const updatedUser  = await apiFetch(`/admin/users/${userId}`, 'PATCH', { role: newRole }, auth.token);
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${auth.token}`
+        },
+        body: JSON.stringify({ role: newRole })
+      });
+      if (!res.ok) throw new Error('Failed to update user role');
+      const updatedUser  = await res.json();
       setUsers(users.map(u => (u._id === userId ? updatedUser .user : u)));
       setUserEditRole(null);
     } catch (err) {
@@ -579,7 +605,11 @@ function AdminDashboard() {
   async function deleteUser (userId) {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
     try {
-      await apiFetch(`/admin/users/${userId}`, 'DELETE', null, auth.token);
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+      if (!res.ok) throw new Error('Failed to delete user');
       setUsers(users.filter(u => u._id !== userId));
     } catch (err) {
       alert(err.message);
@@ -720,7 +750,6 @@ function AdminDashboard() {
     </div>
   );
 }
-
 
 // Main App
 export default function App() {

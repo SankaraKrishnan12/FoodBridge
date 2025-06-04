@@ -27,3 +27,7 @@
    });
    
    app.use('/api/claims', require('./routes/claimRoutes'));
+
+   app.use('/api/admin', require('./routes/adminRoutes'));
+   
+   app.use('/api/admin/users', require('./routes/userRoutes'));
