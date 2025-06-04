@@ -248,11 +248,9 @@ function Home() {
       {!loading && foodPosts.length === 0 && <p>No food posts available currently.</p>}
       <div className="grid-2-cols">
         {foodPosts.map(post => {
-          const imageUrl = post.image;
           const isRequested = requests.includes(post._id);
           return (
             <div key={post._id} className="card" tabIndex={0}>
-              <img src={imageUrl} alt={post.foodName} className="card-image" loading="lazy" />
               <div className="card-content">
                 <h2 className="card-title">{post.foodName}</h2>
                 <p className="card-text">{post.description}</p>

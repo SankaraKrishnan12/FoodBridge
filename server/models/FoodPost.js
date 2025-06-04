@@ -10,7 +10,6 @@ const foodPostSchema = new mongoose.Schema({
     type: { type: String, enum: ['Point'], required: true },
     coordinates: { type: [Number], required: true }
   },
-  image: { type: String },
   availabilityWindow: { type: String, required: true },
   donor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
