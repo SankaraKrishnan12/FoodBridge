@@ -3,11 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
 import apiFetch from '../utils/apiFetch'; // Adjust the path as necessary
 
-export default function Signup() {
+export default function Login() {
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('Donor');
   const [error, setError] = useState('');
   const auth = useAuth();
   const navigate = useNavigate();
@@ -16,8 +14,9 @@ export default function Signup() {
     e.preventDefault();
     setError('');
     try {
-      await apiFetch('/users/signup', 'POST', { username, email, password, role });
-      navigate('/login');
+      const data = await apiFetch('/users/login', 'POST', { username, password });
+      auth.login(data.user, data.token);
+      navigate('/');
     } catch (err) {
       setError(err.message);
     }
@@ -25,7 +24,7 @@ export default function Signup() {
 
   return (
     <div className="max-w-md mx-auto my-16 p-6 bg-white rounded shadow">
-      <h2 className="text-2xl font-semibold mb-4">Sign Up</h2>
+      <h2 className="text-2xl font-semibold mb-4">Login</h2>
       {error && <p className="text-red-500 mb-4">{error}</p>}
       <form onSubmit={handleSubmit} className="space-y-4">
         <input
@@ -37,14 +36,6 @@ export default function Signup() {
           className="w-full px-4 py-2 border rounded bg-gray-100 border-gray-300"
         />
         <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          className="w-full px-4 py-2 border rounded bg-gray-100 border-gray-300"
-        />
-        <input
           type="password"
           placeholder="Password"
           value={password}
@@ -52,27 +43,17 @@ export default function Signup() {
           required
           className="w-full px-4 py-2 border rounded bg-gray-100 border-gray-300"
         />
-        <select
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-          className="w-full px-4 py-2 border rounded bg-gray-100 border-gray-300"
-          required
-        >
-          <option value="Donor">Donor</option>
-          <option value="Recipient">Recipient</option>
-          <option value="Admin">Admin</option>
-        </select>
         <button
           type="submit"
-          className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded"
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded"
         >
-          Sign Up
+          Log In
         </button>
       </form>
       <p className="mt-4 text-center text-sm">
-        Already have an account?{' '}
-        <Link to="/login" className="text-blue-500 hover:underline">
-          Log In
+        Don't have an account?{' '}
+        <Link to="/signup" className="text-blue-500 hover:underline">
+          Sign Up
         </Link>
       </p>
     </div>
