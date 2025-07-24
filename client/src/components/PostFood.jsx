@@ -77,7 +77,7 @@ export default function PostFood() {
   };
 
   return (
-    <div className="max-w-md mx-auto my-16 p-6 bg-white rounded shadow">
+    <div className="max-w-[80%] mx-auto my-16 p-6 bg-white rounded shadow ">
       <h2 className="text-2xl font-semibold mb-4">Post Food</h2>
       {error && <p className="text-red-500 mb-4">{error}</p>}
       {success && <p className="text-green-500 mb-4">{success}</p>}
@@ -151,12 +151,11 @@ export default function PostFood() {
           required
           className="w-full px-4 py-2 border rounded bg-gray-100 border-gray-300"
         />
-        <button
-          type="submit"
-          className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded"
-        >
+        <div className="flex justify-center">
+        <button to="/post" className="button align-center w-[20%] bg-green-600 hover:bg-green-700 text-white py-2 rounded text-center">
           Post Food
         </button>
+        </div>
       </form>
     </div>
   );

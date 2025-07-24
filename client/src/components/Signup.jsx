@@ -62,12 +62,14 @@ export default function Signup() {
           <option value="Recipient">Recipient</option>
           <option value="Admin">Admin</option>
         </select>
-        <button
-          type="submit"
-          className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded"
-        >
-          Sign Up
-        </button>
+        <div className="flex justify-center">
+          <button
+            type="submit"
+            className="button"
+          >
+            Sign Up
+          </button>
+          </div>
       </form>
       <p className="mt-4 text-center text-sm">
         Already have an account?{' '}

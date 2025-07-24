@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
-import DarkModeToggle from './DarkModeToggle';
 
 export default function Header() {
   const auth = useAuth();
@@ -20,10 +19,13 @@ export default function Header() {
       <nav className="flex items-center space-x-4">
         {auth.user ? (
           <>
-            <span className="mr-4">Hi, {auth.user.username}</span>
+            <span className="mr-12 text-gray-700 dark:text-gray-300">
+              Hi, <span className="font-semibold">{auth.user.username}</span>
+            </span>
+
             <button
               onClick={handleLogout}
-              className="bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 text-white px-4 py-2 rounded shadow transition"
+              className=" bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 text-white px-4 py-2 rounded shadow transition"
             >
               Logout
             </button>
@@ -38,7 +40,6 @@ export default function Header() {
             </Link>
           </>
         )}
-        <DarkModeToggle />
       </nav>
     </header>
   );
