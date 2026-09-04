@@ -1,9 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
-import apiFetch from '../utils/apiFetch'; // Adjust the path as necessary
-import { useNavigate } from 'react-router-dom';
+import apiFetch from '../utils/apiFetch';
+
+function toDatetimeLocal(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
 export default function PostFood() {
+  const { id } = useParams();
+  const isEdit = Boolean(id);
   const [foodName, setFoodName] = useState('');
   const [description, setDescription] = useState('');
   const [quantity, setQuantity] = useState(1);
@@ -12,13 +21,14 @@ export default function PostFood() {
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
   const [availabilityWindow, setAvailabilityWindow] = useState('');
+  const [photoFile, setPhotoFile] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const auth = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Attempt to get user's geolocation on mount
+    if (isEdit) return;
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -26,9 +36,32 @@ export default function PostFood() {
           setLongitude(position.coords.longitude.toFixed(6));
         },
         () => {}
-      ); // Ignore error
+      );
     }
-  }, []);
+  }, [isEdit]);
+
+  useEffect(() => {
+    if (!isEdit || !auth.token) return;
+    async function load() {
+      try {
+        const post = await apiFetch(`/food/${id}`, 'GET', null, auth.token);
+        setFoodName(post.foodName || '');
+        setDescription(post.description || '');
+        setQuantity(post.quantity || 1);
+        setCategory(post.category || 'home-cooked');
+        setExpiryDate(toDatetimeLocal(post.expiryDate));
+        setAvailabilityWindow(post.availabilityWindow || '');
+        const coords = post.location?.coordinates;
+        if (Array.isArray(coords) && coords.length >= 2) {
+          setLongitude(String(coords[0]));
+          setLatitude(String(coords[1]));
+        }
+      } catch (err) {
+        setError(err.message);
+      }
+    }
+    load();
+  }, [isEdit, id, auth.token]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -43,119 +76,92 @@ export default function PostFood() {
       return;
     }
     try {
-      const expiryDateISO = new Date(expiryDate).toISOString();
-      const postData = {
-        foodName,
-        description,
-        quantity: Number(quantity),
-        category,
-        expiryDate: expiryDateISO,
-        location: {
+      const form = new FormData();
+      form.append('foodName', foodName);
+      form.append('description', description);
+      form.append('quantity', String(Number(quantity)));
+      form.append('category', category);
+      form.append('expiryDate', new Date(expiryDate).toISOString());
+      form.append('availabilityWindow', availabilityWindow);
+      form.append(
+        'location',
+        JSON.stringify({
           type: 'Point',
           coordinates: [Number(longitude), Number(latitude)],
-        },
-        availabilityWindow,
-      };
-      await apiFetch('/food', 'POST', postData, auth.token);
-      setSuccess('Food post created successfully!');
-      // Reset form
-      setFoodName('');
-      setDescription('');
-      setQuantity(1);
-      setCategory('home-cooked');
-      setExpiryDate('');
-      setAvailabilityWindow('');
-      setLatitude('');
-      setLongitude('');
-      // Redirect to home after short delay
-      setTimeout(() => {
-        navigate('/');
-      }, 1500);
+        })
+      );
+      if (photoFile) form.append('photo', photoFile);
+
+      if (isEdit) {
+        await apiFetch(`/food/${id}`, 'PATCH', form, auth.token);
+        setSuccess('Food post updated.');
+        setTimeout(() => navigate('/my-posts'), 800);
+      } else {
+        await apiFetch('/food', 'POST', form, auth.token);
+        setSuccess('Food post created successfully!');
+        setTimeout(() => navigate('/my-posts'), 800);
+      }
     } catch (err) {
       setError(err.message);
     }
   };
 
   return (
-    <div className="max-w-[80%] mx-auto my-16 p-6 bg-white rounded shadow ">
-      <h2 className="text-2xl font-semibold mb-4">Post Food</h2>
-      {error && <p className="text-red-500 mb-4">{error}</p>}
-      {success && <p className="text-green-500 mb-4">{success}</p>}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <input
-          type="text"
-          placeholder="Food Name"
-          value={foodName}
-          onChange={(e) => setFoodName(e.target.value)}
-          required
-          className="w-full px-4 py-2 border rounded bg-gray-100 border-gray-300"
-        />
-        <textarea
-          placeholder="Description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          required
-          rows="3"
-          className="w-full px-4 py-2 border rounded bg-gray-100 border-gray-300"
-        />
-        <input
-          type="number"
-          min="1"
-          placeholder="Quantity"
-          value={quantity}
-          onChange={(e) => setQuantity(e.target.value)}
-          required
-          className="w-full px-4 py-2 border rounded bg-gray-100 border-gray-300"
-        />
-        <select
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          className="w-full px-4 py-2 border rounded bg-gray-100 border-gray-300"
-        >
-          <option value="home-cooked">Home-cooked</option>
-          <option value="packaged">Packaged</option>
-        </select>
-        <label className="block">
-          Expiry Date and Time:
+    <div className="panel wide">
+      <p className="kicker">Listing</p>
+      <h1 className="page-title">{isEdit ? 'Edit listing' : 'List food'}</h1>
+      <p className="page-sub">Keep it specific: what it is, how many, when it should be collected.</p>
+      {error && <p className="msg-err">{error}</p>}
+      {success && <p className="msg-ok">{success}</p>}
+      <form onSubmit={handleSubmit}>
+        <label className="field">
+          Name
+          <input type="text" value={foodName} onChange={(e) => setFoodName(e.target.value)} required />
+        </label>
+        <label className="field">
+          Description
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} required rows="3" />
+        </label>
+        <label className="field">
+          Portions
+          <input type="number" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} required />
+        </label>
+        <label className="field">
+          Kind
+          <select value={category} onChange={(e) => setCategory(e.target.value)}>
+            <option value="home-cooked">Home-cooked</option>
+            <option value="packaged">Packaged</option>
+          </select>
+        </label>
+        <label className="field">
+          Expires
+          <input type="datetime-local" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} required />
+        </label>
+        <label className="field">
+          Latitude
+          <input type="text" value={latitude} onChange={(e) => setLatitude(e.target.value)} required />
+        </label>
+        <label className="field">
+          Longitude
+          <input type="text" value={longitude} onChange={(e) => setLongitude(e.target.value)} required />
+        </label>
+        <label className="field">
+          Collection window
           <input
-            type="datetime-local"
-            value={expiryDate}
-            onChange={(e) => setExpiryDate(e.target.value)}
+            type="text"
+            placeholder="e.g. 7–10pm"
+            value={availabilityWindow}
+            onChange={(e) => setAvailabilityWindow(e.target.value)}
             required
-            className="mt-1 w-full px-4 py-2 border rounded bg-gray-100 border-gray-300"
           />
         </label>
-        <div className="flex space-x-2">
-          <input
-            type="text"
-            placeholder="Latitude"
-            value={latitude}
-            onChange={(e) => setLatitude(e.target.value)}
-            required
-            className="flex-1 px-4 py-2 border rounded bg-gray-100 border-gray-300"
-          />
-          <input
-            type="text"
-            placeholder="Longitude"
-            value={longitude}
-            onChange={(e) => setLongitude(e.target.value)}
-            required
-            className="flex-1 px-4 py-2 border rounded bg-gray-100 border-gray-300"
-          />
-        </div>
-        <input
-          type="text"
-          placeholder="Availability Window (e.g. 10:00 AM - 5:00 PM)"
-          value={availabilityWindow}
-          onChange={(e) => setAvailabilityWindow(e.target.value)}
-          required
-          className="w-full px-4 py-2 border rounded bg-gray-100 border-gray-300"
-        />
-        <div className="flex justify-center">
-        <button to="/post" className="button align-center w-[20%] bg-green-600 hover:bg-green-700 text-white py-2 rounded text-center">
-          Post Food
+        <label className="field">
+          Photo {isEdit ? '(optional replacement)' : '(optional)'}
+          <input type="file" accept="image/*" onChange={(e) => setPhotoFile(e.target.files?.[0] || null)} />
+        </label>
+        <button type="submit" className="button">
+          {isEdit ? 'Save' : 'Publish'}
         </button>
-        </div>
       </form>
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useAuth } from './AuthProvider';
 import apiFetch from '../utils/apiFetch'; 
 
@@ -6,6 +6,8 @@ export default function AdminDashboard() {
   const auth = useAuth();
   const [claims, setClaims] = useState([]);
   const [users, setUsers] = useState([]);
+  const [foodPosts, setFoodPosts] = useState([]);
+  const [loadingFood, setLoadingFood] = useState(true);
   const [loadingClaims, setLoadingClaims] = useState(true);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [error, setError] = useState('');
@@ -45,11 +47,32 @@ export default function AdminDashboard() {
     if (auth.user?.role === 'Admin') fetchUsers();
   }, [auth]);
 
+  useEffect(() => {
+    async function fetchFood() {
+      setLoadingFood(true);
+      try {
+        const data = await apiFetch('/admin/food', 'GET', null, auth.token);
+        setFoodPosts(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoadingFood(false);
+      }
+    }
+    if (auth.user?.role === 'Admin') fetchFood();
+  }, [auth]);
+
   // Update claim status
   async function updateClaimStatus(claimId, status) {
+    let pickupCode;
+    if (status === 'collected') {
+      pickupCode = window.prompt('Enter the pickup code from the recipient');
+      if (!pickupCode) return;
+    }
     try {
-      const updatedClaim = await apiFetch(`/admin/claims/${claimId}`, 'PATCH', { status }, auth.token);
-      setClaims(claims.map(c => (c._id === claimId ? updatedClaim.claim : c)));
+      const updatedClaim = await apiFetch(`/admin/claims/${claimId}`, 'PATCH', { status, pickupCode }, auth.token);
+      const next = updatedClaim.claim || updatedClaim;
+      setClaims((prev) => prev.map((c) => (c._id === claimId ? next : c)));
     } catch (err) {
       alert(err.message);
     }
@@ -66,7 +89,25 @@ export default function AdminDashboard() {
     }
   }
 
-  // Delete user
+  async function cancelFood(postId) {
+    if (!window.confirm('Cancel this food post?')) return;
+    try {
+      const updated = await apiFetch(`/admin/food/${postId}/cancel`, 'PATCH', {}, auth.token);
+      setFoodPosts(foodPosts.map((p) => (p._id === postId ? updated : p)));
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function deleteFood(postId) {
+    if (!window.confirm('Delete this food post and its claims?')) return;
+    try {
+      await apiFetch(`/admin/food/${postId}`, 'DELETE', null, auth.token);
+      setFoodPosts(foodPosts.filter((p) => p._id !== postId));
+    } catch (err) {
+      alert(err.message);
+    }
+  }
   async function deleteUser (userId) {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
     try {
@@ -78,53 +119,98 @@ export default function AdminDashboard() {
   }
 
   if (auth.user?.role !== 'Admin') {
-    return <p className="p-4 text-center">Access denied. Admins only.</p>;
+    return <p className="page-sub">Admins only.</p>;
   }
 
+  const collected = claims.filter((c) => c.status === 'collected').length;
+  const meals = foodPosts.reduce((sum, p) => sum + (Number(p.quantity) || 0), 0);
+
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-12">
-      <h1 className="text-4xl font-bold mb-6">Admin Dashboard</h1>
+    <div className="stack">
+      <div>
+        <p className="kicker">Moderation</p>
+        <h1 className="page-title">Admin</h1>
+        <div className="stats">
+          <div className="stat"><b>{users.length}</b><span>Users</span></div>
+          <div className="stat"><b>{foodPosts.length}</b><span>Listings</span></div>
+          <div className="stat"><b>{claims.length}</b><span>Claims</span></div>
+          <div className="stat"><b>{collected}</b><span>Collected</span></div>
+          <div className="stat"><b>{meals}</b><span>Portions</span></div>
+        </div>
+      </div>
 
       <section>
-        <h2 className="text-2xl font-semibold mb-4">Manage Claims</h2>
-        {loadingClaims ? <p>Loading claims...</p> : (
-          error ? <p className="text-red-500">{error}</p> :
-          <table className="w-full border-collapse border border-gray-300 dark:border-gray-600">
-            <thead className="bg-gray-100 dark:bg-gray-700">
+        <h2>Listings</h2>
+        {loadingFood ? <p className="page-sub">Loadingâ€¦</p> : (
+          <table className="data-table">
+            <thead>
               <tr>
-                <th className="border border-gray-300 dark:border-gray-600 p-2 text-left">Food</th>
-                <th className="border border-gray-300 dark:border-gray-600 p-2">Recipient</th>
-                <th className="border border-gray-300 dark:border-gray-600 p-2">Status</th>
-                <th className="border border-gray-300 dark:border-gray-600 p-2">Actions</th>
+                <th>Food</th>
+                <th>Donor</th>
+                <th>Status</th>
+                <th>Left</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              {claims.map(claim => (
-                <tr key={claim._id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <td className="border border-gray-300 dark:border-gray-600 p-2">{claim.foodPost?.foodName || 'N/A'}</td>
-                  <td className="border border-gray-300 dark:border-gray-600 p-2">{claim.recipient?.username || 'N/A'}</td>
-                  <td className="border border-gray-300 dark:border-gray-600 p-2 capitalize">{claim.status}</td>
-                  <td className="border border-gray-300 dark:border-gray-600 p-2 space-x-2">
-                    {claim.status === 'pending' && <>
-                      <button
-                        className="button bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded"
-                        onClick={() => updateClaimStatus(claim._id, 'approved')}
-                      >
-                        Approve
+              {foodPosts.map((post) => (
+                <tr key={post._id}>
+                  <td>{post.foodName}</td>
+                  <td>{post.donor?.username || 'â€”'}</td>
+                  <td>{post.status}</td>
+                  <td>{post.quantityRemaining ?? post.quantity}</td>
+                  <td className="space-x-2">
+                    {post.status !== 'cancelled' && post.status !== 'collected' && (
+                      <button type="button" className="button button-small button-danger" onClick={() => cancelFood(post._id)}>
+                        Cancel
                       </button>
-                      <button
-                        className="button bg-red-600 hover:bg-red-700 text-white py-1 px-3 rounded"
-                        onClick={() => updateClaimStatus(claim._id, 'rejected')}
-                      >
-                        Reject
-                      </button>
-                    </>}
+                    )}
+                    <button type="button" className="button button-small button-ghost" onClick={() => deleteFood(post._id)}>
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section>
+        <h2>Claims</h2>
+        {loadingClaims ? <p className="page-sub">Loadingâ€¦</p> : (
+          error ? <p className="msg-err">{error}</p> :
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Food</th>
+                <th>Donor</th>
+                <th>Recipient</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...claims].sort((a, b) => (a.status === 'pending' ? -1 : 0) - (b.status === 'pending' ? -1 : 0)).map((claim) => (
+                <tr key={claim._id}>
+                  <td>{claim.foodPost?.foodName || 'â€”'}</td>
+                  <td>{claim.foodPost?.donor?.username || 'â€”'}</td>
+                  <td>{claim.recipient?.username || 'â€”'}</td>
+                  <td>{claim.status}</td>
+                  <td className="space-x-2">
+                    {claim.status === 'pending' && (
+                      <>
+                        <button type="button" className="button button-small" onClick={() => updateClaimStatus(claim._id, 'approved')}>
+                          Approve
+                        </button>
+                        <button type="button" className="button button-small button-danger" onClick={() => updateClaimStatus(claim._id, 'rejected')}>
+                          Reject
+                        </button>
+                      </>
+                    )}
                     {claim.status === 'approved' && (
-                      <button
-                        className="button bg-blue-600 hover:bg-blue-700 text-white py-1 px-3 rounded"
-                        onClick={() => updateClaimStatus(claim._id, 'collected')}
-                      >
-                        Mark Collected
+                      <button type="button" className="button button-small button-ghost" onClick={() => updateClaimStatus(claim._id, 'collected')}>
+                        Collected
                       </button>
                     )}
                   </td>
@@ -136,67 +222,62 @@ export default function AdminDashboard() {
       </section>
 
       <section>
-        <h2 className="text-2xl font-semibold mb-4">Manage Users</h2>
-        {loadingUsers ? <p>Loading users...</p> : (
-          error ? <p className="text-red-500">{error}</p> :
-          <table className="w-full border-collapse border border-gray-300 dark:border-gray-600">
-            <thead className="bg-gray-100 dark:bg-gray-700">
+        <h2>People</h2>
+        {loadingUsers ? <p className="page-sub">Loadingâ€¦</p> : (
+          error ? <p className="msg-err">{error}</p> :
+          <table className="data-table">
+            <thead>
               <tr>
-                <th className="border border-gray-300 dark:border-gray-600 p-2 text-left">Username</th>
-                <th className="border border-gray-300 dark:border-gray-600 p-2 text-left">Email</th>
-                <th className="border border-gray-300 dark:border-gray-600 p-2 text-left">Role</th>
-                <th className="border border-gray-300 dark:border-gray-600 p-2">Actions</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              {users.map(user => (
-                <tr key={user._id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <td className="border border-gray-300 dark:border-gray-600 p-2">{user.username}</td>
-                  <td className="border border-gray-300 dark:border-gray-600 p-2">{user.email}</td>
-                  <td className="border border-gray-300 dark:border-gray-600 p-2 capitalize">
+              {users.map((user) => (
+                <tr key={user._id}>
+                  <td>{user.username}</td>
+                  <td>{user.email}</td>
+                  <td>
                     {userEditRole?.userId === user._id ? (
                       <select
-                        defaultValue={user.role.toLowerCase()}
+                        defaultValue={user.role}
                         onChange={(e) => setUserEditRole({ userId: user._id, newRole: e.target.value })}
-                        className="border border-gray-400 rounded p-1"
                       >
-                        <option value="donor">Donor</option>
-                        <option value="recipient">Recipient</option>
-                        <option value="admin">Admin</option>
+                        <option value="Donor">Donor</option>
+                        <option value="Recipient">Recipient</option>
+                        <option value="Admin">Admin</option>
                       </select>
                     ) : (
                       user.role
                     )}
                   </td>
-                  <td className="border border-gray-300 dark:border-gray-600 p-2 space-x-2">
+                  <td className="space-x-2">
                     {userEditRole?.userId === user._id ? (
                       <>
                         <button
-                          className="button bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded"
+                          type="button"
+                          className="button button-small"
                           onClick={() => updateUserRole(user._id, userEditRole.newRole)}
                           disabled={!userEditRole.newRole}
                         >
                           Save
                         </button>
-                        <button
-                          className="button bg-gray-400 hover:bg-gray-500 text-black py-1 px-3 rounded"
-                          onClick={() => setUserEditRole(null)}
-                        >
+                        <button type="button" className="button button-small button-ghost" onClick={() => setUserEditRole(null)}>
                           Cancel
                         </button>
                       </>
                     ) : (
                       <>
                         <button
-                          className="button bg-blue-600 hover:bg-blue-700 text-white py-1 px-3 rounded"
-                          onClick={() => setUserEditRole({ userId: user._id, newRole: user.role.toLowerCase() })}
+                          type="button"
+                          className="button button-small button-ghost"
+                          onClick={() => setUserEditRole({ userId: user._id, newRole: user.role })}
                         >
-                          Edit Role
+                          Role
                         </button>
-                        <button
-                          className="button bg-red-600 hover:bg-red-700 text-white py-1 px-3 rounded"
-                          onClick={() => deleteUser(user._id)}
-                        >
+                        <button type="button" className="button button-small button-danger" onClick={() => deleteUser(user._id)}>
                           Delete
                         </button>
                       </>

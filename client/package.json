@@ -4,10 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host --port 8888",
-    "build": "vite build",
+    "dev": "node ./node_modules/vite/bin/vite.js --host --port 8888",
+    "build": "node ./node_modules/vite/bin/vite.js build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "node ./node_modules/vite/bin/vite.js preview"
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.8",

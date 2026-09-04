@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from './AuthProvider';
-import apiFetch from '../utils/apiFetch'; // Adjust the path as necessary
+import apiFetch from '../utils/apiFetch';
 
 export default function Signup() {
   const [username, setUsername] = useState('');
@@ -9,7 +8,6 @@ export default function Signup() {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('Donor');
   const [error, setError] = useState('');
-  const auth = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -24,58 +22,42 @@ export default function Signup() {
   };
 
   return (
-    <div className="max-w-md mx-auto my-16 p-6 bg-white rounded shadow">
-      <h2 className="text-2xl font-semibold mb-4">Sign Up</h2>
-      {error && <p className="text-red-500 mb-4">{error}</p>}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <input
-          type="text"
-          placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          required
-          className="w-full px-4 py-2 border rounded bg-gray-100 border-gray-300"
-        />
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          className="w-full px-4 py-2 border rounded bg-gray-100 border-gray-300"
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          className="w-full px-4 py-2 border rounded bg-gray-100 border-gray-300"
-        />
-        <select
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-          className="w-full px-4 py-2 border rounded bg-gray-100 border-gray-300"
-          required
-        >
-          <option value="Donor">Donor</option>
-          <option value="Recipient">Recipient</option>
-          <option value="Admin">Admin</option>
-        </select>
-        <div className="flex justify-center">
-          <button
-            type="submit"
-            className="button"
-          >
-            Sign Up
-          </button>
-          </div>
+    <div className="panel">
+      <p className="kicker">Account</p>
+      <h1 className="page-title">Join</h1>
+      <p className="page-sub">Give extra food, or collect a meal. Pick one role to start.</p>
+      {error && <p className="msg-err">{error}</p>}
+      <form onSubmit={handleSubmit}>
+        <label className="field">
+          Username
+          <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required />
+        </label>
+        <label className="field">
+          Email
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </label>
+        <label className="field">
+          Password
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={8}
+            placeholder="At least 8 characters"
+          />
+        </label>
+        <label className="field">
+          I am a
+          <select value={role} onChange={(e) => setRole(e.target.value)} required>
+            <option value="Donor">Donor — I have extra food</option>
+            <option value="Recipient">Recipient — I can collect food</option>
+          </select>
+        </label>
+        <button type="submit" className="button">Create account</button>
       </form>
-      <p className="mt-4 text-center text-sm">
-        Already have an account?{' '}
-        <Link to="/login" className="text-blue-500 hover:underline">
-          Log In
-        </Link>
+      <p className="page-sub" style={{ marginTop: '1.25rem', marginBottom: 0 }}>
+        Already joined? <Link to="/login">Log in</Link>
       </p>
     </div>
   );

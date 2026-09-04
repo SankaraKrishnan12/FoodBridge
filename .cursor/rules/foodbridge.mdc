@@ -1,0 +1,37 @@
+---
+description: FoodBridge coding standard from INSTR.md — MERN, secure, minimal
+alwaysApply: true
+---
+
+# FoodBridge coding
+
+Follow `INSTR.md`. When it conflicts with size, **prefer fewer files and fewer lines**.
+
+## Size
+- Extend existing files (`server.js`, route files, current React components) instead of adding new modules.
+- No new folders, helpers, or wrappers unless logic is used in 3+ places.
+- No comments that restate the code. No TODOs or placeholders.
+- Do not convert the whole server to ESM or add Axios unless asked — keep `require` and `apiFetch`.
+
+## Stack
+- MERN: `/client` (Vite, React hooks, Tailwind) and `/server` (Express, Mongoose).
+- Secrets only from `dotenv`. Never hardcode credentials.
+
+## Backend
+- Validate inputs at the route (Zod when adding validation; one schema next to the handler, not a new file).
+- Return `{ message }` on errors. Do not leak hashes or stack traces.
+- Security belongs in `server.js` when added: Helmet, rate-limit on auth, CORS allowlist from env.
+- Auth stays JWT + bcrypt. Cookie storage only if replacing localStorage in the same change.
+- Schemas: types, enums, indexes, timestamps.
+
+## Frontend
+- Functional components, shared `apiFetch`. Loading / empty / error for every fetch.
+- Role checks on `PrivateRoute` and in the API.
+
+```js
+// BAD — new util file for one function
+// server/utils/format.js
+
+// GOOD — keep it in the route or component that uses it
+res.status(400).json({ message: 'Quantity must be at least 1' });
+```

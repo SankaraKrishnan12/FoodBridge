@@ -1,30 +1,43 @@
-import React, { useState, createContext, useContext } from 'react';
+import React, { useEffect, useState, createContext, useContext } from 'react';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser ] = useState(() => {
-    const userData = localStorage.getItem('user');
-    return userData ? JSON.parse(userData) : null;
+  const [user, setUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || 'null');
+    } catch {
+      return null;
+    }
   });
   const [token, setToken] = useState(() => localStorage.getItem('token') || null);
 
-  const login = (user, token) => {
-    setUser (user);
-    setToken(token);
-    localStorage.setItem('user', JSON.stringify(user));
-    localStorage.setItem('token', token);
+  const login = (nextUser, nextToken) => {
+    setUser(nextUser);
+    setToken(nextToken);
+    localStorage.setItem('user', JSON.stringify(nextUser));
+    if (nextToken) localStorage.setItem('token', nextToken);
   };
 
   const logout = () => {
-    setUser (null);
+    setUser(null);
     setToken(null);
     localStorage.removeItem('user');
     localStorage.removeItem('token');
+    fetch('/api/users/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
   };
 
-  const value = { user, token, login, logout };
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  useEffect(() => {
+    const onExpired = () => logout();
+    window.addEventListener('auth:expired', onExpired);
+    return () => window.removeEventListener('auth:expired', onExpired);
+  }, []);
+
+  return (
+    <AuthContext.Provider value={{ user, token, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

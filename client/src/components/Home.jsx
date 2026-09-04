@@ -2,27 +2,33 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
 import apiFetch from '../utils/apiFetch';
+import FoodCard from './FoodCard';
 
 export default function Home() {
   const [foodPosts, setFoodPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [requests, setRequests] = useState([]);
-  const [requestingPostId, setRequestingPostId] = useState(null);
-  const [requestError, setRequestError] = useState('');
+  const [coords, setCoords] = useState(null);
   const auth = useAuth();
+
+  useEffect(() => {
+    if (!('geolocation' in navigator)) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => setCoords(null)
+    );
+  }, []);
 
   useEffect(() => {
     async function fetchFood() {
       setLoading(true);
+      setError('');
       try {
-        const data = await apiFetch('/food');
-        setFoodPosts(data);
-        if (auth.user?.role === 'Recipient') {
-          const claimData = await apiFetch('/claims', 'GET', null, auth.token);
-          const requestedIds = claimData.map(c => c.foodPost._id);
-          setRequests(requestedIds);
-        }
+        const qs =
+          coords && Number.isFinite(coords.lat) && Number.isFinite(coords.lng)
+            ? `/food?lat=${coords.lat}&lng=${coords.lng}`
+            : '/food';
+        setFoodPosts(await apiFetch(qs));
       } catch (err) {
         setError(err.message);
       } finally {
@@ -30,101 +36,65 @@ export default function Home() {
       }
     }
     fetchFood();
-  }, [auth.user, auth.token]);
-
-  const handleRequest = async (foodPostId) => {
-    setRequestError('');
-    setRequestingPostId(foodPostId);
-    try {
-      await apiFetch('/claims', 'POST', { foodPostId }, auth.token);
-      setRequests(prev => [...prev, foodPostId]);
-      alert('Request sent successfully.');
-    } catch (err) {
-      setRequestError(err.message);
-    }
-    setRequestingPostId(null);
-  };
+  }, [auth.user, coords]);
 
   return (
-    <div className="food-feed-container">
-      {/* Intro Section with Background Image */}
-      <section
-  className="relative h-[60vh] bg-cover bg-center flex items-center justify-start text-white rounded mb-10 shadow px-10"
-  style={{ backgroundImage: "url('https://t4.ftcdn.net/jpg/03/14/32/75/240_F_314327563_53uk7HoI85BWSZ01Nmyl2P3GSLra1H9x.jpg')" }} // Change path if needed
->
-  <div className="absolute inset-0 bg-black/30 rounded" />
-  
-  <div className="relative text-left max-w-[45%]">
-    <h1 className="text-4xl md:text-5xl font-bold mb-4">Welcome to FoodBridge</h1>
-    <p className="text-lg md:text-xl leading-relaxed">
-      <strong>FoodBridge</strong> connects people with surplus food to those in need.
-      Reduce waste, support the community, and make a difference one meal at a time.
-    </p>
-  </div>
-</section>
+    <div>
+      <section className="hero">
+        <div>
+          <p className="kicker">Surplus food, locally</p>
+          <h1>Someone nearby cooked more than they need.</h1>
+          <p className="lede">
+            List extra portions or pick up a meal that would otherwise go to waste.
+            No marketplace. No fees. Just a time and a place.
+          </p>
+          <div className="hero-actions">
+            {!auth.user && (
+              <>
+                <Link to="/signup" className="button">Start</Link>
+                <Link to="/login" className="button-ghost">Log in</Link>
+              </>
+            )}
+            {['Donor', 'Admin'].includes(auth.user?.role) && (
+              <Link to="/post" className="button">List food</Link>
+            )}
+            {auth.user?.role === 'Recipient' && (
+              <Link to="/my-claims" className="button-ghost">Your claims</Link>
+            )}
+          </div>
+        </div>
+        <div className="hero-aside">
+          <div className="step">
+            <span className="step-n">01</span>
+            <p><strong>Offer</strong>Name the dish, how many portions, and when it can be collected.</p>
+          </div>
+          <div className="step">
+            <span className="step-n">02</span>
+            <p><strong>Ask</strong>Recipients request a listing. You get a short pickup code.</p>
+          </div>
+          <div className="step">
+            <span className="step-n">03</span>
+            <p><strong>Meet</strong>Show the code at the door. The rest is a shared table.</p>
+          </div>
+        </div>
+      </section>
 
-
-      <h2 className="text-3xl font-bold mb-6 text-center">Available Food</h2>
-
-      {error && <p className="text-red-500 mb-4">{error}</p>}
-      {requestError && <p className="text-red-500 mb-4">{requestError}</p>}
-      {loading && <p>Loading...</p>}
-      {!loading && foodPosts.length === 0 && <p>No food posts available currently.</p>}
-
-      <div className="grid-2-cols">
-        {foodPosts.map(post => {
-          const isRequested = requests.includes(post._id);
-          return (
-            <div key={post._id} className="card" tabIndex={0}>
-              <div className="card-content">
-                <h3 className="card-title">{post.foodName}</h3>
-                <p className="card-text">{post.description}</p>
-                <p className="card-text">Quantity: {post.quantity}</p>
-                <p className="card-text">Category: {post.category}</p>
-                <p className="card-meta">Expires: {new Date(post.expiryDate).toLocaleString()}</p>
-                <p className="card-meta">Donor: {post.donor?.username || 'Unknown'}</p>
-
-                {auth.user?.role === 'Recipient' && (
-                  <button
-                    onClick={() => handleRequest(post._id)}
-                    disabled={isRequested || requestingPostId === post._id}
-                    className="button mt-4"
-                    title={isRequested ? "Already requested" : "Request this food"}
-                  >
-                    {isRequested
-                      ? 'Requested'
-                      : requestingPostId === post._id
-                        ? 'Requesting...'
-                        : 'Request'}
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
+      <div className="section-head">
+        <h2>Available now</h2>
+        <span className="count">{loading ? '…' : `${foodPosts.length} listing${foodPosts.length === 1 ? '' : 's'}`}</span>
       </div>
 
-      {auth.user ? (
-        <div className="mt-6 text-center">
-          <Link to="/post" className="button">
-            Post Food
-          </Link>
-          {auth.user.role === 'Admin' && (
-            <Link to="/admin" className="button ml-4">
-              Admin Dashboard
-            </Link>
-          )}
-        </div>
-      ) : (
-        <div className="mt-6 text-center">
-          <p>
-            <Link to="/login" className="text-blue-600 hover:underline">
-              Log in
-            </Link>{' '}
-            to post food.
-          </p>
-        </div>
+      {error && <p className="msg-err">{error}</p>}
+      {loading && <p className="page-sub">Looking nearby…</p>}
+      {!loading && foodPosts.length === 0 && (
+        <p className="page-sub">Nothing listed right now. Check again later, or post what you have extra.</p>
       )}
+
+      <div className="card-grid">
+        {foodPosts.map((post) => (
+          <FoodCard key={post._id} post={post} />
+        ))}
+      </div>
     </div>
   );
 }

@@ -4,21 +4,21 @@ const Claim = require('../models/Claim');
 const FoodPost = require('../models/FoodPost');
 const { verifyToken } = require('../middleware/authMiddleware');
 const { checkRole } = require('../middleware/roleMiddleware');
+const { applyClaimStatus, cancelFoodPost, expireStalePosts } = require('../utils/foodLifecycle');
 
 const router = express.Router();
 
-// Middleware for admin only
 router.use(verifyToken);
 router.use(checkRole(['Admin']));
 
-/**
- * Get all claims, populated with foodPost and user info
- */
-router.get('/claims', verifyToken, checkRole(['Admin']), async (req, res) => {
+router.get('/claims', async (_req, res) => {
   try {
     const claims = await Claim.find()
       .populate('recipient', 'username email role')
-      .populate('foodPost');
+      .populate({ path: 'foodPost', populate: { path: 'donor', select: 'username' } })
+      .sort({ requestedAt: -1 })
+      .lean();
+    await Claim.ensureCodes(claims);
     res.json(claims);
   } catch (err) {
     console.error('Error fetching claims:', err);
@@ -26,9 +26,6 @@ router.get('/claims', verifyToken, checkRole(['Admin']), async (req, res) => {
   }
 });
 
-/**
- * Update claim status (approve, deny, collected, rejected)
- */
 router.patch('/claims/:id', async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
@@ -37,28 +34,26 @@ router.patch('/claims/:id', async (req, res) => {
   if (!allowedStatuses.includes(status)) {
     return res.status(400).json({ message: 'Invalid status value' });
   }
+  if (status === 'pending') {
+    return res.status(400).json({ message: 'Cannot revert a claim to pending' });
+  }
 
   try {
     const claim = await Claim.findById(id);
     if (!claim) {
       return res.status(404).json({ message: 'Claim not found' });
     }
-    claim.status = status;
-    claim.updatedAt = Date.now();
-    await claim.save();
-
-    // Optionally update FoodPost status based on claim approval/collection here
-
-    res.json({ message: 'Claim status updated', claim });
+    await applyClaimStatus(claim, status, req.body.pickupCode);
+    const updated = await Claim.findById(id)
+      .populate('recipient', 'username email role')
+      .populate('foodPost');
+    res.json({ message: 'Claim status updated', claim: updated });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.status || 500).json({ message: error.message });
   }
 });
 
-/**
- * Get all users
- */
-router.get('/users', async (req, res) => {
+router.get('/users', async (_req, res) => {
   try {
     const users = await User.find().select('-password').sort({ createdAt: -1 });
     res.json(users);
@@ -67,9 +62,6 @@ router.get('/users', async (req, res) => {
   }
 });
 
-/**
- * Update user role
- */
 router.patch('/users/:id', async (req, res) => {
   const { id } = req.params;
   const { role } = req.body;
@@ -86,24 +78,72 @@ router.patch('/users/:id', async (req, res) => {
     }
     user.role = role;
     await user.save();
-    res.json({ message: 'User role updated', user });
+    res.json({
+      message: 'User role updated',
+      user: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role
+      }
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-/**
- * Delete user
- */
 router.delete('/users/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const user = await User.findByIdAndDelete(id);
+    const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    // Optionally delete or reassign user's posts and claims here
+
+    const posts = await FoodPost.find({ donor: id }).select('_id');
+    const postIds = posts.map((p) => p._id);
+
+    await Claim.deleteMany({
+      $or: [{ recipient: id }, { foodPost: { $in: postIds } }]
+    });
+    await FoodPost.deleteMany({ donor: id });
+    await User.findByIdAndDelete(id);
+
     res.json({ message: 'User deleted' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.get('/food', async (_req, res) => {
+  try {
+    await expireStalePosts();
+    const posts = await FoodPost.find()
+      .populate('donor', 'username email')
+      .sort({ createdAt: -1 });
+    res.json(posts);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.patch('/food/:id/cancel', async (req, res) => {
+  try {
+    const post = await FoodPost.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: 'Food post not found' });
+    const updated = await cancelFoodPost(post);
+    res.json(updated);
+  } catch (error) {
+    res.status(error.status || 500).json({ message: error.message });
+  }
+});
+
+router.delete('/food/:id', async (req, res) => {
+  try {
+    const post = await FoodPost.findByIdAndDelete(req.params.id);
+    if (!post) return res.status(404).json({ message: 'Food post not found' });
+    await Claim.deleteMany({ foodPost: post._id });
+    res.json({ message: 'Food post deleted' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

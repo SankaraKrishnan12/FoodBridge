@@ -23,43 +23,40 @@ export default function Login() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
-      <div className="w-80 p-6 bg-white rounded-xl shadow-md">
-        <h2 className="text-xl font-semibold mb-4 text-center text-gray-800">Login</h2>
-        {error && <p className="text-red-500 mb-3 text-sm text-center">{error}</p>}
-        <form onSubmit={handleSubmit} className="space-y-3">
+    <div className="panel">
+      <p className="kicker">Account</p>
+      <h1 className="page-title">Log in</h1>
+      {error && <p className="msg-err">{error}</p>}
+      <form onSubmit={handleSubmit}>
+        <label className="field">
+          Username or email
           <input
+            id="username"
+            name="username"
             type="text"
-            placeholder="Username"
+            autoComplete="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required
-            className="px-4 py-2 border rounded bg-gray-100 border-gray-300 w-full"
           />
+        </label>
+        <label className="field">
+          Password
           <input
+            id="password"
+            name="password"
             type="password"
-            placeholder="Password"
+            autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="px-4 py-2 border rounded bg-gray-100 border-gray-300 w-full"
           />
-          <div className="flex justify-center">
-          <button
-            type="submit"
-            className="button"
-          >
-            Log In
-          </button>
-          </div>
-        </form>
-        <p className="mt-4 text-center text-sm text-gray-600">
-          Don't have an account?{' '}
-          <Link to="/signup" className="text-blue-500 hover:underline">
-            Sign Up
-          </Link>
-        </p>
-      </div>
+        </label>
+        <button type="submit" className="button">Enter</button>
+      </form>
+      <p className="page-sub" style={{ marginTop: '1.25rem', marginBottom: 0 }}>
+        New here? <Link to="/signup">Create an account</Link>
+      </p>
     </div>
   );
 }
